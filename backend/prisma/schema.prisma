@@ -1,0 +1,62 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Room {
+  id         String   @id @default(uuid())
+  name       String
+  slug       String   @unique
+  logo_url   String?
+  banner_url String?
+  is_active  Boolean  @default(true)
+  created_at DateTime @default(now())
+
+  documents  Document[]
+  visits     RoomVisit[]
+  docOpens   DocumentOpen[]
+}
+
+model Document {
+  id           String   @id @default(uuid())
+  room_id      String
+  display_name String
+  file_url     String
+  file_type    String
+  order        Int      @default(0)
+  created_at   DateTime @default(now())
+
+  room      Room           @relation(fields: [room_id], references: [id], onDelete: Cascade)
+  docOpens  DocumentOpen[]
+}
+
+model RoomVisit {
+  id            String   @id @default(uuid())
+  room_id       String
+  visitor_email String
+  visited_at    DateTime @default(now())
+
+  room Room @relation(fields: [room_id], references: [id], onDelete: Cascade)
+}
+
+model DocumentOpen {
+  id            String   @id @default(uuid())
+  room_id       String
+  document_id   String
+  visitor_email String
+  opened_at     DateTime @default(now())
+
+  room     Room     @relation(fields: [room_id], references: [id], onDelete: Cascade)
+  document Document @relation(fields: [document_id], references: [id], onDelete: Cascade)
+}
+
+model Founder {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  password     String
+  created_at   DateTime @default(now())
+}
