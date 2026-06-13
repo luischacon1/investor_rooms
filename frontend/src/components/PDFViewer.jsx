@@ -1,23 +1,20 @@
 import { useEffect, useRef, useState } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
+import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.js?url';
 
-// CDN worker — avoids Vite/browser worker module compatibility issues
-pdfjsLib.GlobalWorkerOptions.workerSrc =
-  `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
 
 export default function PDFViewer({ url, onLoad, onError }) {
   const containerRef = useRef();
   const [containerW, setContainerW] = useState(0);
   const [pages, setPages] = useState([]);
 
-  // Measure container width
+  // Measure container width — read immediately + ResizeObserver
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-    // Read width immediately too, in case ResizeObserver fires late
     const immediate = Math.floor(el.getBoundingClientRect().width);
     if (immediate > 0) setContainerW(immediate);
-
     const ro = new ResizeObserver(([entry]) => {
       const w = Math.floor(entry.contentRect.width);
       if (w > 0) setContainerW(w);
@@ -26,10 +23,9 @@ export default function PDFViewer({ url, onLoad, onError }) {
     return () => ro.disconnect();
   }, []);
 
-  // Load + render pages
+  // Load + render all pages
   useEffect(() => {
     if (!url || !containerW) return;
-
     let cancelled = false;
     setPages([]);
 
@@ -38,7 +34,6 @@ export default function PDFViewer({ url, onLoad, onError }) {
         const pdf = await pdfjsLib.getDocument({ url, withCredentials: false }).promise;
         if (cancelled) return;
 
-        // Cap dpr at 2 to avoid oversized canvases on desktop retina screens
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
         for (let i = 1; i <= pdf.numPages; i++) {
@@ -48,9 +43,9 @@ export default function PDFViewer({ url, onLoad, onError }) {
           const scale  = (containerW / baseVP.width) * dpr;
           const vp     = page.getViewport({ scale });
 
-          const canvas     = document.createElement('canvas');
-          canvas.width     = Math.floor(vp.width);
-          canvas.height    = Math.floor(vp.height);
+          const canvas         = document.createElement('canvas');
+          canvas.width         = Math.floor(vp.width);
+          canvas.height        = Math.floor(vp.height);
           canvas.style.display = 'block';
           canvas.style.width   = `${containerW}px`;
           canvas.style.height  = `${Math.floor(vp.height / dpr)}px`;
