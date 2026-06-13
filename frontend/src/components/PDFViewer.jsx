@@ -1,18 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
+import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.mjs',
-  import.meta.url
-).href;
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
 
 export default function PDFViewer({ url, onLoad, onError }) {
   const containerRef = useRef();
   const [containerW, setContainerW] = useState(0);
-  const [pages, setPages] = useState([]); // array of { canvas }
-  const loadedRef = useRef(false);
+  const [pages, setPages] = useState([]);
 
-  // Measure container width once
+  // Measure container width
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -24,33 +21,31 @@ export default function PDFViewer({ url, onLoad, onError }) {
     return () => ro.disconnect();
   }, []);
 
-  // Render PDF pages
+  // Load + render pages whenever url or containerW is ready
   useEffect(() => {
-    if (!url || !containerW || loadedRef.current) return;
-    loadedRef.current = true;
+    if (!url || !containerW) return;
 
     let cancelled = false;
+    setPages([]);
 
     async function render() {
       try {
-        const pdf = await pdfjsLib.getDocument({ url, withCredentials: false }).promise;
+        const loadingTask = pdfjsLib.getDocument({ url, withCredentials: false });
+        const pdf = await loadingTask.promise;
         if (cancelled) return;
 
         const dpr = window.devicePixelRatio || 1;
-        const rendered = [];
 
         for (let i = 1; i <= pdf.numPages; i++) {
           if (cancelled) break;
-          const page = await pdf.getPage(i);
-          const baseVP  = page.getViewport({ scale: 1 });
-          // Scale so page fills the container width, then multiply by dpr for sharpness
-          const scale   = (containerW / baseVP.width) * dpr;
-          const vp      = page.getViewport({ scale });
+          const page   = await pdf.getPage(i);
+          const baseVP = page.getViewport({ scale: 1 });
+          const scale  = (containerW / baseVP.width) * dpr;
+          const vp     = page.getViewport({ scale });
 
-          const canvas  = document.createElement('canvas');
-          canvas.width  = Math.floor(vp.width);
-          canvas.height = Math.floor(vp.height);
-          // CSS size = logical pixels (container width, proportional height)
+          const canvas     = document.createElement('canvas');
+          canvas.width     = Math.floor(vp.width);
+          canvas.height    = Math.floor(vp.height);
           canvas.style.display = 'block';
           canvas.style.width   = `${containerW}px`;
           canvas.style.height  = `${Math.floor(vp.height / dpr)}px`;
@@ -58,13 +53,14 @@ export default function PDFViewer({ url, onLoad, onError }) {
           await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
           if (cancelled) break;
 
-          rendered.push(canvas);
-          setPages(p => [...p, canvas]); // show each page as it renders
+          setPages(p => [...p, canvas]);
+          if (i === 1) onLoad?.(); // trigger loaded after first page
         }
-
-        if (!cancelled) onLoad?.();
       } catch (err) {
-        if (!cancelled) { console.error('PDF error', err); onError?.(); }
+        if (!cancelled) {
+          console.error('PDFViewer error:', err);
+          onError?.();
+        }
       }
     }
 
@@ -79,13 +75,13 @@ export default function PDFViewer({ url, onLoad, onError }) {
       style={{ background: '#525659', WebkitOverflowScrolling: 'touch' }}
     >
       {pages.map((canvas, i) => (
-        <CanvasPage key={i} canvas={canvas} last={i === pages.length - 1} />
+        <CanvasPage key={i} canvas={canvas} />
       ))}
     </div>
   );
 }
 
-function CanvasPage({ canvas, last }) {
+function CanvasPage({ canvas }) {
   const ref = useRef();
   useEffect(() => {
     if (ref.current && canvas) {
@@ -93,5 +89,5 @@ function CanvasPage({ canvas, last }) {
       ref.current.appendChild(canvas);
     }
   }, [canvas]);
-  return <div ref={ref} style={{ marginBottom: last ? 0 : '2px' }} />;
+  return <div ref={ref} style={{ marginBottom: '2px' }} />;
 }
