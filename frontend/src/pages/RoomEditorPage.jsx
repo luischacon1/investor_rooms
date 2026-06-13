@@ -4,7 +4,82 @@ import { DndContext, closestCenter, PointerSensor, useSensor, useSensors } from 
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import api from '../lib/api';
-import { ArrowLeft, Upload, Copy, Check, GripVertical, Trash2, Pencil, X, Save, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Upload, Copy, Check, GripVertical, Trash2, Pencil, X, Save, ExternalLink, Loader, ImagePlus } from 'lucide-react';
+
+function ImageUploader({ label, currentUrl, field, roomId, onSaved, aspectClass = 'h-28' }) {
+  const inputRef = useRef();
+  const [preview, setPreview] = useState(currentUrl);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [imgError, setImgError] = useState(false);
+
+  // Sync if parent updates
+  useEffect(() => { setPreview(currentUrl); setImgError(false); }, [currentUrl]);
+
+  async function handleFile(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    // Local preview immediately
+    const localUrl = URL.createObjectURL(file);
+    setPreview(localUrl);
+    setImgError(false);
+    setSaving(true);
+    try {
+      const fd = new FormData();
+      fd.append(field, file);
+      const { data } = await api.put(`/api/rooms/${roomId}`, fd);
+      const saved = field === 'logo' ? data.logo_url : data.banner_url;
+      setPreview(saved + '?t=' + Date.now()); // cache-bust
+      onSaved(saved);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch {
+      setPreview(currentUrl);
+    } finally {
+      setSaving(false);
+      e.target.value = '';
+    }
+  }
+
+  const hasImage = preview && !imgError;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-xs text-zinc-500 uppercase tracking-wide">{label}</span>
+        {saved && <span className="text-xs text-emerald-400 flex items-center gap-1"><Check size={11} /> Guardado</span>}
+      </div>
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        disabled={saving}
+        className={`relative w-full ${aspectClass} rounded-xl overflow-hidden bg-zinc-900 border border-zinc-800 hover:border-zinc-600 transition-colors flex items-center justify-center group`}
+      >
+        {hasImage ? (
+          <img
+            src={preview}
+            alt={label}
+            onError={() => setImgError(true)}
+            className={`w-full h-full ${field === 'logo' ? 'object-contain p-3' : 'object-cover'}`}
+          />
+        ) : (
+          <div className="flex flex-col items-center gap-2 text-zinc-600">
+            <ImagePlus size={22} />
+            <span className="text-xs">Subir {label.toLowerCase()}</span>
+          </div>
+        )}
+        {/* Hover overlay */}
+        <div className={`absolute inset-0 flex items-center justify-center gap-2 transition-opacity ${saving ? 'opacity-100 bg-black/60' : 'opacity-0 group-hover:opacity-100 bg-black/50'}`}>
+          {saving
+            ? <Loader size={18} className="text-white animate-spin" />
+            : <><Upload size={14} className="text-white" /><span className="text-white text-xs font-medium">Cambiar {label.toLowerCase()}</span></>
+          }
+        </div>
+      </button>
+      <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+    </div>
+  );
+}
 
 const FILE_ICONS = {
   pdf: '📄', ppt: '📊', pptx: '📊', doc: '📝', docx: '📝',
@@ -196,45 +271,23 @@ export default function RoomEditorPage() {
 
       <main className="max-w-3xl mx-auto px-6 py-10 space-y-10">
         {/* Logo + Banner editors */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs text-zinc-500 uppercase tracking-wide mb-2">Logo</label>
-            <label className="relative block cursor-pointer group">
-              <div className="h-24 rounded-xl bg-zinc-900 border border-zinc-800 overflow-hidden flex items-center justify-center hover:border-zinc-700 transition-colors">
-                {room.logo_url
-                  ? <img src={room.logo_url} alt="Logo" className="w-full h-full object-contain p-2" onError={e => e.target.style.display='none'} />
-                  : <Upload size={18} className="text-zinc-600" />}
-                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl">
-                  <span className="text-xs text-white">Cambiar</span>
-                </div>
-              </div>
-              <input type="file" accept="image/*" className="hidden" onChange={async e => {
-                const file = e.target.files[0]; if (!file) return;
-                const fd = new FormData(); fd.append('logo', file);
-                const { data } = await api.put(`/api/rooms/${id}`, fd);
-                setRoom(r => ({ ...r, logo_url: data.logo_url }));
-              }} />
-            </label>
-          </div>
-          <div>
-            <label className="block text-xs text-zinc-500 uppercase tracking-wide mb-2">Banner</label>
-            <label className="relative block cursor-pointer group">
-              <div className="h-24 rounded-xl bg-zinc-900 border border-zinc-800 overflow-hidden flex items-center justify-center hover:border-zinc-700 transition-colors">
-                {room.banner_url
-                  ? <img src={room.banner_url} alt="Banner" className="w-full h-full object-cover" onError={e => e.target.style.display='none'} />
-                  : <Upload size={18} className="text-zinc-600" />}
-                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl">
-                  <span className="text-xs text-white">Cambiar</span>
-                </div>
-              </div>
-              <input type="file" accept="image/*" className="hidden" onChange={async e => {
-                const file = e.target.files[0]; if (!file) return;
-                const fd = new FormData(); fd.append('banner', file);
-                const { data } = await api.put(`/api/rooms/${id}`, fd);
-                setRoom(r => ({ ...r, banner_url: data.banner_url }));
-              }} />
-            </label>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <ImageUploader
+            label="Logo"
+            field="logo"
+            roomId={id}
+            currentUrl={room.logo_url}
+            aspectClass="h-28"
+            onSaved={url => setRoom(r => ({ ...r, logo_url: url }))}
+          />
+          <ImageUploader
+            label="Banner"
+            field="banner"
+            roomId={id}
+            currentUrl={room.banner_url}
+            aspectClass="h-28"
+            onSaved={url => setRoom(r => ({ ...r, banner_url: url }))}
+          />
         </div>
 
         {/* Shareable link */}
