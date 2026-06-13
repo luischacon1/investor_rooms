@@ -43,7 +43,7 @@ export default function DashboardPage() {
   }
 
   function copyLink(slug) {
-    navigator.clipboard.writeText(`${BASE}/room/${slug}`);
+    navigator.clipboard.writeText(`${BASE}/r/${slug}`);
     setCopied(slug);
     setTimeout(() => setCopied(null), 2000);
   }
@@ -96,14 +96,14 @@ export default function DashboardPage() {
                   <div className="flex items-center gap-4 mt-1 text-xs text-zinc-500">
                     <span className="flex items-center gap-1"><Users size={12} />{room._count?.visits ?? 0} visitors</span>
                     <span className="flex items-center gap-1"><FileText size={12} />{room._count?.docOpens ?? 0} doc opens</span>
-                    <span className="font-mono truncate max-w-48">/room/{room.slug}</span>
+                    <span className="font-mono truncate max-w-48">/r/{room.slug}</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <button onClick={() => copyLink(room.slug)} title="Copy link" className="p-2 text-zinc-500 hover:text-white transition-colors">
                     {copied === room.slug ? <Check size={15} className="text-emerald-400" /> : <Copy size={15} />}
                   </button>
-                  <a href={`/room/${room.slug}`} target="_blank" rel="noopener" className="p-2 text-zinc-500 hover:text-white transition-colors">
+                  <a href={`/r/${room.slug}`} target="_blank" rel="noopener" className="p-2 text-zinc-500 hover:text-white transition-colors">
                     <ExternalLink size={15} />
                   </a>
                   <button onClick={() => toggleActive(room)} className="p-2 text-zinc-500 hover:text-white transition-colors">

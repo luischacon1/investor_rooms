@@ -23,6 +23,7 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/dashboard" element={<PrivateRoute><DashboardPage /></PrivateRoute>} />
           <Route path="/dashboard/rooms/:id" element={<PrivateRoute><RoomEditorPage /></PrivateRoute>} />
+          <Route path="/r/:slug" element={<PublicRoomPage />} />
           <Route path="/room/:slug" element={<PublicRoomPage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>

@@ -7,11 +7,9 @@ const fs = require('fs');
 
 const upload = createUploader('rooms');
 
-function slugify(name) {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
+function shortId() {
+  // 6 alphanumeric chars — 36^6 = 2.1B combinations, collision-safe for small scale
+  return Math.random().toString(36).slice(2, 8);
 }
 
 function fileUrl(req, filePath) {
@@ -34,9 +32,8 @@ router.post('/', auth, upload.fields([{ name: 'logo' }, { name: 'banner' }]), as
   const { name } = req.body;
   if (!name) return res.status(400).json({ error: 'Name required' });
 
-  let slug = slugify(name);
-  const existing = await prisma.room.findUnique({ where: { slug } });
-  if (existing) slug = `${slug}-${Date.now()}`;
+  let slug = shortId();
+  while (await prisma.room.findUnique({ where: { slug } })) slug = shortId();
 
   const logo_url = req.files?.logo?.[0] ? fileUrl(req, req.files.logo[0].path) : null;
   const banner_url = req.files?.banner?.[0] ? fileUrl(req, req.files.banner[0].path) : null;
