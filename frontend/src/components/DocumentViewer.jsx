@@ -63,6 +63,8 @@ export default function DocumentViewer({ doc, visitorToken, onClose }) {
 
   const origin    = window.location.origin;
   const viewUrl   = `${origin}/api/public/document/${doc.id}/view?token=${encodeURIComponent(visitorToken)}`;
+  // #view=Fit tells the browser PDF viewer to fit the whole page — no horizontal scroll
+  const pdfUrl    = `${viewUrl}#view=Fit&toolbar=0`;
   const officeUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(viewUrl)}`;
 
   // Measure the viewer area so we can compute rotated dimensions
@@ -174,7 +176,7 @@ export default function DocumentViewer({ doc, visitorToken, onClose }) {
       </div>
 
       {/* ── Viewer area ── */}
-      <div ref={wrapperRef} className="flex-1 relative overflow-hidden bg-zinc-950">
+      <div ref={wrapperRef} className="flex-1 relative overflow-hidden bg-zinc-950" style={{ touchAction: 'none' }}>
 
         {/* Spinner */}
         {!loaded && !error && viewerType !== 'unsupported' && (
@@ -187,7 +189,7 @@ export default function DocumentViewer({ doc, visitorToken, onClose }) {
         {viewerType === 'pdf' && (
           <iframe
             key={`${doc.id}-${rotated}`}
-            src={viewUrl}
+            src={pdfUrl}
             title={doc.display_name}
             style={iframeStyle}
             onLoad={() => setLoaded(true)}
