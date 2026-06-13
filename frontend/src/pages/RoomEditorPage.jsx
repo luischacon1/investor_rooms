@@ -195,12 +195,47 @@ export default function RoomEditorPage() {
       </header>
 
       <main className="max-w-3xl mx-auto px-6 py-10 space-y-10">
-        {/* Banner preview */}
-        {room.banner_url && (
-          <div className="rounded-xl overflow-hidden h-36 bg-zinc-900">
-            <img src={room.banner_url} alt="Banner" className="w-full h-full object-cover" />
+        {/* Logo + Banner editors */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs text-zinc-500 uppercase tracking-wide mb-2">Logo</label>
+            <label className="relative block cursor-pointer group">
+              <div className="h-24 rounded-xl bg-zinc-900 border border-zinc-800 overflow-hidden flex items-center justify-center hover:border-zinc-700 transition-colors">
+                {room.logo_url
+                  ? <img src={room.logo_url} alt="Logo" className="w-full h-full object-contain p-2" onError={e => e.target.style.display='none'} />
+                  : <Upload size={18} className="text-zinc-600" />}
+                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl">
+                  <span className="text-xs text-white">Cambiar</span>
+                </div>
+              </div>
+              <input type="file" accept="image/*" className="hidden" onChange={async e => {
+                const file = e.target.files[0]; if (!file) return;
+                const fd = new FormData(); fd.append('logo', file);
+                const { data } = await api.put(`/api/rooms/${id}`, fd);
+                setRoom(r => ({ ...r, logo_url: data.logo_url }));
+              }} />
+            </label>
           </div>
-        )}
+          <div>
+            <label className="block text-xs text-zinc-500 uppercase tracking-wide mb-2">Banner</label>
+            <label className="relative block cursor-pointer group">
+              <div className="h-24 rounded-xl bg-zinc-900 border border-zinc-800 overflow-hidden flex items-center justify-center hover:border-zinc-700 transition-colors">
+                {room.banner_url
+                  ? <img src={room.banner_url} alt="Banner" className="w-full h-full object-cover" onError={e => e.target.style.display='none'} />
+                  : <Upload size={18} className="text-zinc-600" />}
+                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl">
+                  <span className="text-xs text-white">Cambiar</span>
+                </div>
+              </div>
+              <input type="file" accept="image/*" className="hidden" onChange={async e => {
+                const file = e.target.files[0]; if (!file) return;
+                const fd = new FormData(); fd.append('banner', file);
+                const { data } = await api.put(`/api/rooms/${id}`, fd);
+                setRoom(r => ({ ...r, banner_url: data.banner_url }));
+              }} />
+            </label>
+          </div>
+        </div>
 
         {/* Shareable link */}
         <div>

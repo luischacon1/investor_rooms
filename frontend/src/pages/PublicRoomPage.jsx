@@ -80,8 +80,12 @@ export default function PublicRoomPage() {
       <div className="min-h-screen bg-zinc-950 text-white">
         {/* Banner */}
         {room.banner_url ? (
-          <div className="h-52 md:h-72 overflow-hidden relative">
-            <img src={room.banner_url} alt="" className="w-full h-full object-cover" />
+          <div className="h-52 md:h-72 overflow-hidden relative bg-zinc-900">
+            <img
+              src={room.banner_url} alt=""
+              className="w-full h-full object-cover"
+              onError={e => { e.target.style.display = 'none'; }}
+            />
             <div className="absolute inset-0 bg-gradient-to-b from-transparent to-zinc-950/80" />
           </div>
         ) : (
@@ -92,7 +96,7 @@ export default function PublicRoomPage() {
           {/* Logo + title */}
           <div className="flex items-end gap-4 mb-8">
             {room.logo_url && (
-              <img src={room.logo_url} alt="Logo" className="w-16 h-16 rounded-2xl object-cover bg-zinc-800 border-2 border-zinc-900 shadow-xl shrink-0" />
+              <img src={room.logo_url} alt="Logo" className="w-16 h-16 rounded-2xl object-cover bg-zinc-800 border-2 border-zinc-900 shadow-xl shrink-0" onError={e => { e.target.style.display = 'none'; }} />
             )}
             <div className="pb-1">
               <h1 className="text-2xl font-bold text-white">{room.name}</h1>
