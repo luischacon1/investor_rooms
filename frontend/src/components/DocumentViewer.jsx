@@ -273,19 +273,22 @@ export default function DocumentViewer({ doc, visitorToken, onClose }) {
           </div>
         )}
 
-        {/* Office (Excel, Word, PPT) — scaled to fit */}
-        {viewerType === 'office' && dims.w > 0 && (
-          <div style={{ opacity: loaded ? 1 : 0, transition: 'opacity 0.3s', position: 'absolute', inset: 0 }}>
-            <ScaledIframe
-              src={officeUrl}
-              title={doc.display_name}
-              containerW={dims.w}
-              containerH={dims.h}
-              rotated={rotated}
-              onLoad={() => setLoaded(true)}
-              onError={() => { setError(true); setLoaded(true); }}
-            />
-          </div>
+        {/* Office (Excel, Word, PPT) — MS Office Online viewer, responsive */}
+        {viewerType === 'office' && (
+          <iframe
+            key={`${doc.id}-office`}
+            src={officeUrl}
+            title={doc.display_name}
+            onLoad={() => setLoaded(true)}
+            onError={() => { setError(true); setLoaded(true); }}
+            style={{
+              position: 'absolute', inset: 0,
+              width: '100%', height: '100%',
+              border: 'none',
+              opacity: loaded ? 1 : 0,
+              transition: 'opacity 0.3s',
+            }}
+          />
         )}
 
         {viewerType === 'unsupported' && (
