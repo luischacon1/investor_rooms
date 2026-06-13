@@ -51,6 +51,10 @@ router.post('/room/:slug/enter', async (req, res) => {
 
 // View document — streams file inline, logs the open, never exposes file URL
 router.get('/document/:id/view', async (req, res) => {
+  // Allow Microsoft/Google viewer servers to fetch the file
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET');
+
   const { token } = req.query;
   if (!token) return res.status(401).send('Unauthorized');
 
@@ -93,6 +97,12 @@ router.get('/document/:id/view', async (req, res) => {
     png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
     gif: 'image/gif', svg: 'image/svg+xml', webp: 'image/webp',
     mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    xls:  'application/vnd.ms-excel',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    doc:  'application/msword',
+    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    ppt:  'application/vnd.ms-powerpoint',
   };
   const ext = path.extname(filePath).slice(1).toLowerCase();
   const mime = MIME_MAP[ext] || 'application/octet-stream';

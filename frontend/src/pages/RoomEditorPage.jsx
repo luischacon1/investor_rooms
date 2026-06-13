@@ -73,6 +73,9 @@ export default function RoomEditorPage() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameValue, setNameValue] = useState('');
+  const nameInputRef = useRef();
   const fileInputRef = useRef();
   const BASE = window.location.origin;
 
@@ -126,6 +129,21 @@ export default function RoomEditorPage() {
     setRoom(r => ({ ...r, ...data }));
   }
 
+  function startEditName() {
+    setNameValue(room.name);
+    setEditingName(true);
+    setTimeout(() => nameInputRef.current?.focus(), 50);
+  }
+
+  async function saveRoomName() {
+    const trimmed = nameValue.trim();
+    if (trimmed && trimmed !== room.name) {
+      const { data } = await api.put(`/api/rooms/${id}`, { name: trimmed });
+      setRoom(r => ({ ...r, ...data }));
+    }
+    setEditingName(false);
+  }
+
   function copyLink() {
     navigator.clipboard.writeText(`${BASE}/room/${room.slug}`);
     setCopied(true);
@@ -141,10 +159,24 @@ export default function RoomEditorPage() {
         <button onClick={() => navigate('/dashboard')} className="text-zinc-500 hover:text-white transition-colors">
           <ArrowLeft size={18} />
         </button>
-        <div className="flex items-center gap-3 flex-1">
-          {room.logo_url && <img src={room.logo_url} alt="" className="w-8 h-8 rounded-lg object-cover bg-zinc-800" />}
-          <h1 className="font-semibold text-white">{room.name}</h1>
-          <span className={`text-xs px-2 py-0.5 rounded-full ${room.is_active ? 'bg-emerald-900/50 text-emerald-400' : 'bg-zinc-800 text-zinc-500'}`}>
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          {room.logo_url && <img src={room.logo_url} alt="" className="w-8 h-8 rounded-lg object-cover bg-zinc-800 shrink-0" />}
+          {editingName ? (
+            <input
+              ref={nameInputRef}
+              value={nameValue}
+              onChange={e => setNameValue(e.target.value)}
+              onBlur={saveRoomName}
+              onKeyDown={e => { if (e.key === 'Enter') saveRoomName(); if (e.key === 'Escape') setEditingName(false); }}
+              className="font-semibold text-white bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1 text-sm focus:outline-none focus:border-zinc-500 w-64"
+            />
+          ) : (
+            <button onClick={startEditName} className="flex items-center gap-2 group">
+              <h1 className="font-semibold text-white">{room.name}</h1>
+              <Pencil size={13} className="text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+            </button>
+          )}
+          <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${room.is_active ? 'bg-emerald-900/50 text-emerald-400' : 'bg-zinc-800 text-zinc-500'}`}>
             {room.is_active ? 'Active' : 'Inactive'}
           </span>
         </div>
