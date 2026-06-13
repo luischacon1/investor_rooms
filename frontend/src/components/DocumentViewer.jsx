@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { X, Loader, AlertCircle, ZoomIn, ZoomOut, RotateCw } from 'lucide-react';
+import PDFViewer from './PDFViewer';
 
 const IMAGE_TYPES  = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'];
 const PDF_TYPES    = ['pdf'];
@@ -222,19 +223,13 @@ export default function DocumentViewer({ doc, visitorToken, onClose }) {
           </div>
         )}
 
-        {/* PDF — scaled to fit, always shows full page */}
-        {viewerType === 'pdf' && dims.w > 0 && (
-          <div style={{ opacity: loaded ? 1 : 0, transition: 'opacity 0.3s', position: 'absolute', inset: 0 }}>
-            <ScaledIframe
-              src={viewUrl}
-              title={doc.display_name}
-              containerW={dims.w}
-              containerH={dims.h}
-              rotated={rotated}
-              onLoad={() => setLoaded(true)}
-              onError={() => { setError(true); setLoaded(true); }}
-            />
-          </div>
+        {/* PDF — rendered page-by-page via PDF.js, fits screen width exactly */}
+        {viewerType === 'pdf' && (
+          <PDFViewer
+            url={viewUrl}
+            onLoad={() => setLoaded(true)}
+            onError={() => { setError(true); setLoaded(true); }}
+          />
         )}
 
         {/* Image — object-fit contain + zoom + rotate */}
