@@ -89,20 +89,45 @@ router.get('/document/:id/view', async (req, res) => {
     pdf: 'application/pdf',
     png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
     gif: 'image/gif', svg: 'image/svg+xml', webp: 'image/webp',
+    mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime',
   };
   const ext = path.extname(filePath).slice(1).toLowerCase();
   const mime = MIME_MAP[ext] || 'application/octet-stream';
 
   const stat = fs.statSync(filePath);
+  const isVideo = ['mp4', 'webm', 'mov'].includes(ext);
+
   res.setHeader('Content-Type', mime);
   res.setHeader('Content-Disposition', 'inline');
-  res.setHeader('Content-Length', stat.size);
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Cache-Control', 'no-store');
-  // Allow same-origin iframe embedding
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
 
-  fs.createReadStream(filePath).pipe(res);
+  // Video needs range request support so the player can seek
+  if (isVideo) {
+    const range = req.headers.range;
+    if (range) {
+      const [startStr, endStr] = range.replace(/bytes=/, '').split('-');
+      const start = parseInt(startStr, 10);
+      const end = endStr ? parseInt(endStr, 10) : stat.size - 1;
+      const chunkSize = end - start + 1;
+      res.writeHead(206, {
+        'Content-Range': `bytes ${start}-${end}/${stat.size}`,
+        'Accept-Ranges': 'bytes',
+        'Content-Length': chunkSize,
+        'Content-Type': mime,
+      });
+      fs.createReadStream(filePath, { start, end }).pipe(res);
+    } else {
+      res.setHeader('Accept-Ranges', 'bytes');
+      res.setHeader('Content-Length', stat.size);
+      res.writeHead(200);
+      fs.createReadStream(filePath).pipe(res);
+    }
+  } else {
+    res.setHeader('Content-Length', stat.size);
+    fs.createReadStream(filePath).pipe(res);
+  }
 });
 
 module.exports = router;

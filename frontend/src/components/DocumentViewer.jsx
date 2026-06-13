@@ -5,7 +5,8 @@ const API = import.meta.env.VITE_API_URL || '';
 
 const IMAGE_TYPES = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'];
 const PDF_TYPES = ['pdf'];
-const PREVIEWABLE = [...PDF_TYPES, ...IMAGE_TYPES];
+const VIDEO_TYPES = ['mp4', 'webm', 'mov'];
+const PREVIEWABLE = [...PDF_TYPES, ...IMAGE_TYPES, ...VIDEO_TYPES];
 
 export default function DocumentViewer({ doc, visitorToken, onClose }) {
   const overlayRef = useRef();
@@ -14,6 +15,7 @@ export default function DocumentViewer({ doc, visitorToken, onClose }) {
   const ext = doc?.file_type?.toLowerCase();
   const isImage = IMAGE_TYPES.includes(ext);
   const isPdf = PDF_TYPES.includes(ext);
+  const isVideo = VIDEO_TYPES.includes(ext);
   const canPreview = PREVIEWABLE.includes(ext);
 
   const viewUrl = `${API}/api/public/document/${doc.id}/view?token=${encodeURIComponent(visitorToken)}`;
@@ -66,6 +68,22 @@ export default function DocumentViewer({ doc, visitorToken, onClose }) {
                 onError={() => { setError(true); setLoaded(true); }}
                 style={{ opacity: loaded ? 1 : 0, transition: 'opacity 0.2s' }}
               />
+            )}
+
+            {isVideo && (
+              <div className="w-full h-full flex items-center justify-center bg-black p-4">
+                <video
+                  key={doc.id}
+                  src={viewUrl}
+                  controls
+                  controlsList="nodownload nofullscreen"
+                  disablePictureInPicture
+                  onLoadedData={() => setLoaded(true)}
+                  onError={() => { setError(true); setLoaded(true); }}
+                  className="max-w-full max-h-full rounded"
+                  style={{ opacity: loaded ? 1 : 0, transition: 'opacity 0.2s' }}
+                />
+              </div>
             )}
 
             {isImage && (
