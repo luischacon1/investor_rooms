@@ -93,12 +93,14 @@ router.get('/document/:id/view', async (req, res) => {
   const ext = path.extname(filePath).slice(1).toLowerCase();
   const mime = MIME_MAP[ext] || 'application/octet-stream';
 
-  // inline — browser renders it; no attachment header so no download prompt
+  const stat = fs.statSync(filePath);
   res.setHeader('Content-Type', mime);
   res.setHeader('Content-Disposition', 'inline');
+  res.setHeader('Content-Length', stat.size);
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  // Prevent the file from being cached with its real path
   res.setHeader('Cache-Control', 'no-store');
+  // Allow same-origin iframe embedding
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
 
   fs.createReadStream(filePath).pipe(res);
 });
