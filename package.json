@@ -1,0 +1,9 @@
+{
+  "name": "investor-rooms",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "cd frontend && npm install && npm run build",
+    "start": "cd backend && npm install && npm start",
+    "postinstall": "cd backend && npx prisma generate"
+  }
+}
