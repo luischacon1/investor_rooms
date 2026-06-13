@@ -72,7 +72,10 @@ router.get('/document/:id/view', async (req, res) => {
   const urlPath = new URL(doc.file_url, 'http://localhost').pathname.replace(/^\/uploads/, '');
   const filePath = path.join(storagePath, urlPath);
 
-  if (!fs.existsSync(filePath)) return res.status(404).send('File not found');
+  if (!fs.existsSync(filePath)) {
+    console.error(`File not found: ${filePath} (from url: ${doc.file_url})`);
+    return res.status(404).send('File not found');
+  }
 
   // Log the open (idempotent within same session — still log every view)
   prisma.documentOpen.create({
