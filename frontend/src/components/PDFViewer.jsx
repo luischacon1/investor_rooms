@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import * as pdfjsLib from 'pdfjs-dist';
-import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
+// CDN worker — avoids Vite/browser worker module compatibility issues
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+  `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 export default function PDFViewer({ url, onLoad, onError }) {
   const containerRef = useRef();
@@ -13,6 +14,10 @@ export default function PDFViewer({ url, onLoad, onError }) {
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
+    // Read width immediately too, in case ResizeObserver fires late
+    const immediate = Math.floor(el.getBoundingClientRect().width);
+    if (immediate > 0) setContainerW(immediate);
+
     const ro = new ResizeObserver(([entry]) => {
       const w = Math.floor(entry.contentRect.width);
       if (w > 0) setContainerW(w);
@@ -21,7 +26,7 @@ export default function PDFViewer({ url, onLoad, onError }) {
     return () => ro.disconnect();
   }, []);
 
-  // Load + render pages whenever url or containerW is ready
+  // Load + render pages
   useEffect(() => {
     if (!url || !containerW) return;
 
@@ -30,11 +35,11 @@ export default function PDFViewer({ url, onLoad, onError }) {
 
     async function render() {
       try {
-        const loadingTask = pdfjsLib.getDocument({ url, withCredentials: false });
-        const pdf = await loadingTask.promise;
+        const pdf = await pdfjsLib.getDocument({ url, withCredentials: false }).promise;
         if (cancelled) return;
 
-        const dpr = window.devicePixelRatio || 1;
+        // Cap dpr at 2 to avoid oversized canvases on desktop retina screens
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
 
         for (let i = 1; i <= pdf.numPages; i++) {
           if (cancelled) break;
@@ -54,7 +59,7 @@ export default function PDFViewer({ url, onLoad, onError }) {
           if (cancelled) break;
 
           setPages(p => [...p, canvas]);
-          if (i === 1) onLoad?.(); // trigger loaded after first page
+          if (i === 1) onLoad?.();
         }
       } catch (err) {
         if (!cancelled) {
