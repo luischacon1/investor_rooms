@@ -1,6 +1,8 @@
 const router = require('express').Router();
 const prisma = require('../lib/prisma');
 const jwt = require('jsonwebtoken');
+const path = require('path');
+const fs = require('fs');
 const { sendRoomEntryNotification, sendDocumentOpenNotification } = require('../services/email');
 
 function visitorToken(email, roomId) {
@@ -47,31 +49,35 @@ router.post('/room/:slug/enter', async (req, res) => {
   res.json({ token, email });
 });
 
-// Open document — returns file URL + logs the open
-router.get('/document/:id/open', async (req, res) => {
+// View document — streams file inline, logs the open, never exposes file URL
+router.get('/document/:id/view', async (req, res) => {
   const { token } = req.query;
-  if (!token) return res.status(401).json({ error: 'Token required' });
+  if (!token) return res.status(401).send('Unauthorized');
 
   let visitor;
   try {
     visitor = verifyVisitorToken(token);
   } catch {
-    return res.status(401).json({ error: 'Invalid token' });
+    return res.status(401).send('Invalid token');
   }
 
   const doc = await prisma.document.findUnique({
     where: { id: req.params.id },
     include: { room: true },
   });
-  if (!doc) return res.status(404).json({ error: 'Document not found' });
+  if (!doc) return res.status(404).send('Not found');
 
-  await prisma.documentOpen.create({
-    data: {
-      room_id: doc.room_id,
-      document_id: doc.id,
-      visitor_email: visitor.email,
-    },
-  });
+  // Resolve file path from stored URL
+  const storagePath = path.resolve(process.env.STORAGE_PATH || './uploads');
+  const urlPath = new URL(doc.file_url, 'http://localhost').pathname.replace(/^\/uploads/, '');
+  const filePath = path.join(storagePath, urlPath);
+
+  if (!fs.existsSync(filePath)) return res.status(404).send('File not found');
+
+  // Log the open (idempotent within same session — still log every view)
+  prisma.documentOpen.create({
+    data: { room_id: doc.room_id, document_id: doc.id, visitor_email: visitor.email },
+  }).catch(() => {});
 
   sendDocumentOpenNotification({
     visitorEmail: visitor.email,
@@ -79,7 +85,22 @@ router.get('/document/:id/open', async (req, res) => {
     roomName: doc.room.name,
   }).catch((err) => console.error('Email error:', err));
 
-  res.json({ file_url: doc.file_url });
+  const MIME_MAP = {
+    pdf: 'application/pdf',
+    png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+    gif: 'image/gif', svg: 'image/svg+xml', webp: 'image/webp',
+  };
+  const ext = path.extname(filePath).slice(1).toLowerCase();
+  const mime = MIME_MAP[ext] || 'application/octet-stream';
+
+  // inline — browser renders it; no attachment header so no download prompt
+  res.setHeader('Content-Type', mime);
+  res.setHeader('Content-Disposition', 'inline');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  // Prevent the file from being cached with its real path
+  res.setHeader('Cache-Control', 'no-store');
+
+  fs.createReadStream(filePath).pipe(res);
 });
 
 module.exports = router;
