@@ -113,7 +113,8 @@ router.get('/document/:id/view', async (req, res) => {
   res.setHeader('Content-Type', mime);
   res.setHeader('Content-Disposition', 'inline');
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('Cache-Control', 'no-store');
+  // private: token in URL makes it visitor-specific; 30min cache speeds up re-opens & prefetch
+  res.setHeader('Cache-Control', 'private, max-age=1800');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
 
   // Video needs range request support so the player can seek

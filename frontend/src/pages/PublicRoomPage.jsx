@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import api from '../lib/api';
 import DocumentViewer from '../components/DocumentViewer';
+import { preloadDocs } from '../lib/docPreloader';
 
 const FILE_ICONS = {
   pdf: '📄', ppt: '📊', pptx: '📊', doc: '📝', docx: '📝',
@@ -37,7 +38,17 @@ export default function PublicRoomPage() {
       } catch { localStorage.removeItem(storageKey); }
     }
     api.get(`/api/public/room/${slug}`)
-      .then(r => setRoom(r.data))
+      .then(r => {
+        setRoom(r.data);
+        // If already authenticated, preload immediately
+        const saved = localStorage.getItem(`ir_visitor_${slug}`);
+        if (saved) {
+          try {
+            const { token } = JSON.parse(saved);
+            if (token) preloadDocs(r.data.documents, token);
+          } catch {}
+        }
+      })
       .catch(err => setError(err.response?.data?.error || 'Room not found'))
       .finally(() => setLoading(false));
   }, [slug]);
@@ -51,6 +62,8 @@ export default function PublicRoomPage() {
       localStorage.setItem(storageKey, JSON.stringify({ token: data.token, email: data.email }));
       setVisitorToken(data.token);
       setVisitorEmail(data.email);
+      // Start preloading docs immediately after auth
+      if (room?.documents) preloadDocs(room.documents, data.token);
     } catch (err) {
       setEmailError(err.response?.data?.error || 'Something went wrong');
     } finally {

@@ -1,15 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
-import * as pdfjsLib from 'pdfjs-dist';
-import pdfjsWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.js?url';
-
-pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorkerUrl;
+import { getCachedPDF, pdfjsLib } from '../lib/docPreloader';
 
 export default function PDFViewer({ url, onLoad, onError }) {
-  const containerRef = useRef();
+  const containerRef   = useRef();
   const [containerW, setContainerW] = useState(0);
-  const [pages, setPages] = useState([]);
+  const [pages,     setPages]     = useState([]);
+  const [useFallback, setUseFallback] = useState(false);
 
-  // Measure container width — read immediately + ResizeObserver
+  // Measure container width immediately + via ResizeObserver
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -23,15 +21,19 @@ export default function PDFViewer({ url, onLoad, onError }) {
     return () => ro.disconnect();
   }, []);
 
-  // Load + render all pages
+  // Render PDF pages
   useEffect(() => {
-    if (!url || !containerW) return;
+    if (!url || !containerW || useFallback) return;
     let cancelled = false;
     setPages([]);
 
     async function render() {
       try {
-        const pdf = await pdfjsLib.getDocument({ url, withCredentials: false }).promise;
+        // Use cached PDF if already loading/loaded in background
+        const pdfPromise = getCachedPDF(url)
+          ?? pdfjsLib.getDocument({ url, withCredentials: false }).promise;
+
+        const pdf = await pdfPromise;
         if (cancelled) return;
 
         const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -57,16 +59,28 @@ export default function PDFViewer({ url, onLoad, onError }) {
           if (i === 1) onLoad?.();
         }
       } catch (err) {
-        if (!cancelled) {
-          console.error('PDFViewer error:', err);
-          onError?.();
-        }
+        if (cancelled) return;
+        console.warn('PDF.js failed, falling back to native viewer:', err);
+        // Fallback: let the browser render it natively via iframe
+        setUseFallback(true);
+        onLoad?.();
       }
     }
 
     render();
     return () => { cancelled = true; };
-  }, [url, containerW]);
+  }, [url, containerW, useFallback]);
+
+  // Native iframe fallback (works on Safari/Firefox when PDF.js fails)
+  if (useFallback) {
+    return (
+      <iframe
+        src={url}
+        title="PDF"
+        style={{ width: '100%', height: '100%', border: 'none' }}
+      />
+    );
+  }
 
   return (
     <div
