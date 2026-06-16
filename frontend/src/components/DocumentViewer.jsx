@@ -65,6 +65,9 @@ export default function DocumentViewer({ doc, visitorToken, onClose }) {
 
   const origin    = window.location.origin;
   const viewUrl   = `${origin}/api/public/document/${doc.id}/view?token=${encodeURIComponent(visitorToken)}`;
+  // #view=FitH tells PDF-capable browsers (Chrome, Edge, Chromium) to fit the page to width,
+  // avoiding horizontal scroll. Browsers that ignore URL fragments (older Safari) just no-op safely.
+  const pdfUrl    = `${viewUrl}#view=FitH&toolbar=0&navpanes=0`;
   const officeUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(viewUrl)}`;
 
   // Reset on doc change
@@ -181,7 +184,7 @@ export default function DocumentViewer({ doc, visitorToken, onClose }) {
         {viewerType === 'pdf' && (
           <iframe
             key={doc.id}
-            src={viewUrl}
+            src={pdfUrl}
             title={doc.display_name}
             onLoad={() => setLoaded(true)}
             onError={() => { setError(true); setLoaded(true); }}
