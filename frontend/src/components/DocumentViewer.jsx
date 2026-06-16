@@ -52,12 +52,33 @@ function usePinchZoom(containerRef, { enabled, setZoom }) {
 // inside a plain iframe. No PDF.js, no canvas rendering, no custom scaling math —
 // those all introduced failure modes (frozen tabs, blank pages) across devices.
 // A visible "open in new tab" link is always available as a guaranteed fallback.
+// Detects the device/viewport shape so the PDF open-params can adapt:
+// narrow & tall (mobile portrait) → fit width; wide (desktop/tablet landscape) → fit whole page.
+function useViewportShape() {
+  const [shape, setShape] = useState(() =>
+    window.innerWidth < window.innerHeight ? 'portrait' : 'landscape'
+  );
+  useEffect(() => {
+    function update() {
+      setShape(window.innerWidth < window.innerHeight ? 'portrait' : 'landscape');
+    }
+    window.addEventListener('resize', update);
+    window.addEventListener('orientationchange', update);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('orientationchange', update);
+    };
+  }, []);
+  return shape;
+}
+
 export default function DocumentViewer({ doc, visitorToken, onClose }) {
   const containerRef = useRef();
   const [loaded,  setLoaded]   = useState(false);
   const [error,   setError]    = useState(false);
   const [zoom,    setZoom]     = useState(1);
   const [slow,    setSlow]     = useState(false);
+  const shape = useViewportShape(); // 'portrait' (mobile/vertical) or 'landscape' (desktop)
 
   const ext        = doc?.file_type?.toLowerCase();
   const viewerType = getViewerType(ext);
@@ -65,9 +86,12 @@ export default function DocumentViewer({ doc, visitorToken, onClose }) {
 
   const origin    = window.location.origin;
   const viewUrl   = `${origin}/api/public/document/${doc.id}/view?token=${encodeURIComponent(visitorToken)}`;
-  // #view=FitH tells PDF-capable browsers (Chrome, Edge, Chromium) to fit the page to width,
-  // avoiding horizontal scroll. Browsers that ignore URL fragments (older Safari) just no-op safely.
-  const pdfUrl    = `${viewUrl}#view=FitH&toolbar=0&navpanes=0`;
+  // PDF open params adapt per viewport shape — both are ignored harmlessly by
+  // browsers that don't support URL fragments (e.g. older Safari), so this never breaks anything:
+  //  - portrait (mobile/vertical): FitH fits page to screen width → no horizontal scroll
+  //  - landscape (desktop/wide):   Fit shows the whole page at once, using the extra space
+  const pdfView = shape === 'portrait' ? 'FitH' : 'Fit';
+  const pdfUrl  = `${viewUrl}#view=${pdfView}&toolbar=0&navpanes=0`;
   const officeUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(viewUrl)}`;
 
   // Reset on doc change
