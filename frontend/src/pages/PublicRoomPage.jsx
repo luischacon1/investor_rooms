@@ -8,6 +8,8 @@ const FILE_ICONS = {
   gif: '🖼', svg: '🖼', mp4: '🎬', zip: '📦',
 };
 
+const OFFICE_TYPES = ['xlsx', 'xls', 'ppt', 'pptx', 'doc', 'docx'];
+
 function FileIcon({ type }) {
   return <span className="text-xl">{FILE_ICONS[type?.toLowerCase()] ?? '📎'}</span>;
 }
@@ -22,6 +24,7 @@ export default function PublicRoomPage() {
   const [emailError, setEmailError] = useState('');
   const [visitorToken, setVisitorToken] = useState(null);
   const [visitorEmail, setVisitorEmail] = useState(null);
+  const [officeDoc, setOfficeDoc] = useState(null);
 
   const storageKey = `ir_visitor_${slug}`;
 
@@ -133,20 +136,30 @@ export default function PublicRoomPage() {
             <div>
               <p className="text-xs text-zinc-600 mb-5">Logged in as <span className="text-zinc-400">{visitorEmail}</span></p>
               <div className="space-y-2">
-                {room.documents.map(doc => (
-                  <a
-                    key={doc.id}
-                    href={`${window.location.origin}/api/public/document/${doc.id}/view?token=${encodeURIComponent(visitorToken)}`}
-                    className="w-full flex items-center gap-4 bg-zinc-900 border border-zinc-800 rounded-xl px-5 py-4 text-left hover:border-zinc-700 hover:bg-zinc-800/50 transition-all group"
-                  >
-                    <FileIcon type={doc.file_type} />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-white truncate group-hover:text-zinc-100">{doc.display_name}</div>
-                      <div className="text-xs text-zinc-600 uppercase mt-0.5">{doc.file_type}</div>
-                    </div>
-                    <span className="text-xs text-zinc-600 group-hover:text-zinc-400 shrink-0">Abrir →</span>
-                  </a>
-                ))}
+                {room.documents.map(doc => {
+                  const isOffice = OFFICE_TYPES.includes(doc.file_type?.toLowerCase());
+                  const viewUrl = `${window.location.origin}/api/public/document/${doc.id}/view?token=${encodeURIComponent(visitorToken)}`;
+                  const sharedClass = "w-full flex items-center gap-4 bg-zinc-900 border border-zinc-800 rounded-xl px-5 py-4 text-left hover:border-zinc-700 hover:bg-zinc-800/50 transition-all group";
+                  const inner = (
+                    <>
+                      <FileIcon type={doc.file_type} />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-white truncate group-hover:text-zinc-100">{doc.display_name}</div>
+                        <div className="text-xs text-zinc-600 uppercase mt-0.5">{doc.file_type}</div>
+                      </div>
+                      <span className="text-xs text-zinc-600 group-hover:text-zinc-400 shrink-0">Abrir →</span>
+                    </>
+                  );
+                  return isOffice ? (
+                    <button key={doc.id} onClick={() => setOfficeDoc({ ...doc, viewUrl })} className={sharedClass}>
+                      {inner}
+                    </button>
+                  ) : (
+                    <a key={doc.id} href={viewUrl} className={sharedClass}>
+                      {inner}
+                    </a>
+                  );
+                })}
               </div>
               {room.documents.length === 0 && (
                 <p className="text-zinc-600 text-sm text-center py-10">No documents yet.</p>
@@ -156,6 +169,26 @@ export default function PublicRoomPage() {
           <div className="mt-12 pb-10 text-center text-zinc-800 text-xs">Powered by InvestorRoom</div>
         </div>
       </div>
+
+      {officeDoc && (
+        <div className="fixed inset-0 z-50 flex flex-col bg-zinc-950">
+          <div className="flex items-center gap-2 px-3 py-2 bg-zinc-900 border-b border-zinc-800 shrink-0">
+            <button
+              onClick={() => setOfficeDoc(null)}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm text-zinc-300 hover:text-white rounded-lg hover:bg-zinc-800"
+            >
+              ← Volver
+            </button>
+            <span className="text-sm font-medium text-white truncate flex-1 min-w-0">{officeDoc.display_name}</span>
+          </div>
+          <iframe
+            key={officeDoc.id}
+            src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(officeDoc.viewUrl)}`}
+            title={officeDoc.display_name}
+            className="flex-1 w-full border-none"
+          />
+        </div>
+      )}
     </>
   );
 }

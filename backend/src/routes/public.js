@@ -111,8 +111,13 @@ router.get('/document/:id/view', async (req, res) => {
   const isVideo = ['mp4', 'webm', 'mov'].includes(ext);
 
   res.setHeader('Content-Type', mime);
-  // inline: browser opens it natively (preview); the user can still save/download from there
-  res.setHeader('Content-Disposition', `inline; filename="${doc.display_name.replace(/"/g, '')}"`);
+  // inline: browser opens it natively (preview); the user can still save/download from there.
+  // Header values must be ASCII — accented filenames (e.g. "ampliación") would otherwise
+  // throw ERR_INVALID_CHAR and crash the request, so we provide both a safe ASCII fallback
+  // and the proper RFC 5987 UTF-8 encoded name.
+  const asciiName = doc.display_name.replace(/[^\x20-\x7E]/g, '_').replace(/"/g, '');
+  const utf8Name = encodeURIComponent(doc.display_name);
+  res.setHeader('Content-Disposition', `inline; filename="${asciiName}"; filename*=UTF-8''${utf8Name}`);
   res.setHeader('X-Content-Type-Options', 'nosniff');
   // private: token in URL makes it visitor-specific; 30min cache speeds up re-opens
   res.setHeader('Cache-Control', 'private, max-age=1800');
