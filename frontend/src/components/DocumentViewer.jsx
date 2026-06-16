@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { X, Loader, AlertCircle, ZoomIn, ZoomOut, RotateCw } from 'lucide-react';
-import PDFViewer from './PDFViewer';
+import { X, Loader, AlertCircle, ZoomIn, ZoomOut, ExternalLink } from 'lucide-react';
 
 const IMAGE_TYPES  = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'];
 const PDF_TYPES    = ['pdf'];
@@ -15,10 +14,10 @@ function getViewerType(ext) {
   return 'unsupported';
 }
 
-const ZOOM_STEP    = 0.25;
-const ZOOM_MIN     = 0.5;
-const ZOOM_MAX     = 5;
-const IFRAME_REF_W = 1200; // reference width we render iframes at, then scale down
+const ZOOM_STEP = 0.25;
+const ZOOM_MIN  = 0.5;
+const ZOOM_MAX  = 5;
+const LOAD_TIMEOUT_MS = 9000; // if nothing loads by then, surface the "open in new tab" escape hatch
 
 // ── Pinch-to-zoom (images only) ───────────────────────────────────────────────
 function usePinchZoom(containerRef, { enabled, setZoom }) {
@@ -48,100 +47,40 @@ function usePinchZoom(containerRef, { enabled, setZoom }) {
   }, [enabled, containerRef, setZoom]);
 }
 
-// ── ScaledIframe ──────────────────────────────────────────────────────────────
-// Renders iframe at IFRAME_REF_W px wide and scales it down to fill the container.
-// This guarantees the full page is visible regardless of document proportions.
-function ScaledIframe({ src, title, containerW, containerH, rotated, onLoad, onError }) {
-  if (!containerW || !containerH) return null;
-
-  if (!rotated) {
-    // Portrait: scale iframe to fit containerW
-    const scale = containerW / IFRAME_REF_W;
-    const iframeH = containerH / scale;
-    return (
-      <iframe
-        key={`${src}-portrait`}
-        src={src}
-        title={title}
-        onLoad={onLoad}
-        onError={onError}
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          width: `${IFRAME_REF_W}px`,
-          height: `${iframeH}px`,
-          transform: `scale(${scale})`,
-          transformOrigin: 'top left',
-          border: 'none',
-        }}
-      />
-    );
-  } else {
-    // Landscape (rotated 90°): use screen height as the width
-    const scale = containerH / IFRAME_REF_W;
-    const iframeH = containerW / scale;
-    // After rotate(90deg): width ↔ height. We position so it's centered.
-    const offset = (containerH - containerW) / 2;
-    return (
-      <iframe
-        key={`${src}-landscape`}
-        src={src}
-        title={title}
-        onLoad={onLoad}
-        onError={onError}
-        style={{
-          position: 'absolute',
-          top: offset,
-          left: -offset,
-          width: `${IFRAME_REF_W}px`,
-          height: `${iframeH}px`,
-          transform: `scale(${scale}) rotate(90deg)`,
-          transformOrigin: 'top left',
-          border: 'none',
-        }}
-      />
-    );
-  }
-}
-
 // ── Main ───────────────────────────────────────────────────────────────────────
+// Deliberately simple: PDFs and Office files use the browser's own native viewer
+// inside a plain iframe. No PDF.js, no canvas rendering, no custom scaling math —
+// those all introduced failure modes (frozen tabs, blank pages) across devices.
+// A visible "open in new tab" link is always available as a guaranteed fallback.
 export default function DocumentViewer({ doc, visitorToken, onClose }) {
-  const wrapperRef   = useRef();
   const containerRef = useRef();
-  const [loaded,  setLoaded]  = useState(false);
-  const [error,   setError]   = useState(false);
-  const [zoom,    setZoom]    = useState(1);
-  const [rotated, setRotated] = useState(false);
-  const [dims,    setDims]    = useState({ w: 0, h: 0 });
+  const [loaded,  setLoaded]   = useState(false);
+  const [error,   setError]    = useState(false);
+  const [zoom,    setZoom]     = useState(1);
+  const [slow,    setSlow]     = useState(false);
 
   const ext        = doc?.file_type?.toLowerCase();
   const viewerType = getViewerType(ext);
   const canZoom    = viewerType === 'image';
-  const canRotate  = ['pdf', 'office', 'image'].includes(viewerType);
 
   const origin    = window.location.origin;
   const viewUrl   = `${origin}/api/public/document/${doc.id}/view?token=${encodeURIComponent(visitorToken)}`;
   const officeUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(viewUrl)}`;
-
-  // Measure container
-  useEffect(() => {
-    const el = wrapperRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(([entry]) => {
-      setDims({ w: entry.contentRect.width, h: entry.contentRect.height });
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
 
   // Reset on doc change
   useEffect(() => {
     setLoaded(false);
     setError(false);
     setZoom(1);
-    setRotated(false);
+    setSlow(false);
   }, [doc.id]);
+
+  // Surface "open in new tab" if loading takes too long (covers silent failures)
+  useEffect(() => {
+    if (loaded || error) return;
+    const t = setTimeout(() => setSlow(true), LOAD_TIMEOUT_MS);
+    return () => clearTimeout(t);
+  }, [loaded, error, doc.id]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -172,7 +111,6 @@ export default function DocumentViewer({ doc, visitorToken, onClose }) {
   usePinchZoom(containerRef, { enabled: canZoom, setZoom });
 
   function blockContext(e) { e.preventDefault(); }
-  function handleRotate() { setRotated(r => !r); setLoaded(false); }
 
   return (
     <div
@@ -203,42 +141,67 @@ export default function DocumentViewer({ doc, visitorToken, onClose }) {
           </div>
         )}
 
-        {canRotate && (
-          <button
-            onClick={handleRotate}
-            title={rotated ? 'Ver en vertical' : 'Ver en horizontal (más grande)'}
-            className={`p-2 rounded-lg touch-manipulation transition-colors ${rotated ? 'text-white bg-zinc-700' : 'text-zinc-400 hover:text-white hover:bg-zinc-800'}`}
+        {/* Always-available escape hatch for pdf/office — guarantees the visitor can see the file */}
+        {(viewerType === 'pdf' || viewerType === 'office') && (
+          <a
+            href={viewUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Abrir en pestaña nueva"
+            className="p-2 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 touch-manipulation"
           >
-            <RotateCw size={18} />
-          </button>
+            <ExternalLink size={18} />
+          </a>
         )}
       </div>
 
       {/* ── Viewer area ── */}
-      <div ref={wrapperRef} className="flex-1 relative overflow-hidden bg-zinc-950">
+      <div ref={containerRef} className="flex-1 relative overflow-hidden bg-zinc-950">
 
         {!loaded && !error && viewerType !== 'unsupported' && (
-          <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
+          <div className="absolute inset-0 flex flex-col items-center justify-center z-20 gap-4 px-6 text-center">
             <Loader size={28} className="text-zinc-500 animate-spin" />
+            {slow && (viewerType === 'pdf' || viewerType === 'office') && (
+              <>
+                <p className="text-zinc-500 text-sm">Esto está tardando más de lo normal.</p>
+                <a
+                  href={viewUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 bg-white text-zinc-900 text-sm font-medium rounded-lg px-4 py-2 pointer-events-auto"
+                >
+                  <ExternalLink size={16} /> Abrir en pestaña nueva
+                </a>
+              </>
+            )}
           </div>
         )}
 
-        {/* PDF — rendered page-by-page via PDF.js, fits screen width exactly */}
+        {/* PDF — native browser viewer via plain iframe (most reliable across devices) */}
         {viewerType === 'pdf' && (
-          <PDFViewer
-            url={viewUrl}
+          <iframe
+            key={doc.id}
+            src={viewUrl}
+            title={doc.display_name}
             onLoad={() => setLoaded(true)}
             onError={() => { setError(true); setLoaded(true); }}
+            style={{
+              position: 'absolute', inset: 0,
+              width: '100%', height: '100%',
+              border: 'none',
+              opacity: loaded ? 1 : 0,
+              transition: 'opacity 0.3s',
+            }}
           />
         )}
 
-        {/* Image — object-fit contain + zoom + rotate */}
+        {/* Image — zoom + pinch */}
         {viewerType === 'image' && (
           <>
             <div className="absolute inset-0 z-10" onContextMenu={blockContext} onDragStart={e => e.preventDefault()} />
-            <div ref={containerRef} className="w-full h-full overflow-auto flex items-center justify-center p-4">
+            <div className="w-full h-full overflow-auto flex items-center justify-center p-4">
               <img
-                key={`${doc.id}-${rotated}`}
+                key={doc.id}
                 src={viewUrl}
                 alt={doc.display_name}
                 onLoad={() => setLoaded(true)}
@@ -246,7 +209,7 @@ export default function DocumentViewer({ doc, visitorToken, onClose }) {
                 draggable={false}
                 className="select-none pointer-events-none block max-w-full max-h-full"
                 style={{
-                  transform: `scale(${zoom})${rotated ? ' rotate(90deg)' : ''}`,
+                  transform: `scale(${zoom})`,
                   transformOrigin: 'center center',
                   opacity: loaded ? 1 : 0,
                   transition: 'opacity 0.3s, transform 0.15s',
@@ -258,7 +221,7 @@ export default function DocumentViewer({ doc, visitorToken, onClose }) {
 
         {/* Video */}
         {viewerType === 'video' && (
-          <div ref={containerRef} className="w-full h-full flex items-center justify-center bg-black p-3">
+          <div className="w-full h-full flex items-center justify-center bg-black p-3">
             <video
               key={doc.id}
               src={viewUrl}
@@ -273,10 +236,10 @@ export default function DocumentViewer({ doc, visitorToken, onClose }) {
           </div>
         )}
 
-        {/* Office (Excel, Word, PPT) — MS Office Online viewer, responsive */}
+        {/* Office (Excel, Word, PPT) — Microsoft Office Online viewer */}
         {viewerType === 'office' && (
           <iframe
-            key={`${doc.id}-office`}
+            key={doc.id}
             src={officeUrl}
             title={doc.display_name}
             onLoad={() => setLoaded(true)}
@@ -303,9 +266,14 @@ export default function DocumentViewer({ doc, visitorToken, onClose }) {
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center px-6 bg-zinc-950 z-30">
             <AlertCircle size={36} className="text-red-500" />
             <p className="text-zinc-400 text-sm">No se pudo cargar el documento.</p>
-            <button onClick={() => { setError(false); setLoaded(false); }} className="text-xs text-zinc-500 underline mt-1">
-              Reintentar
-            </button>
+            <a
+              href={viewUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 bg-white text-zinc-900 text-sm font-medium rounded-lg px-4 py-2 mt-1"
+            >
+              <ExternalLink size={16} /> Abrir en pestaña nueva
+            </a>
           </div>
         )}
       </div>
