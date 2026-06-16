@@ -137,8 +137,6 @@ export default function PublicRoomPage() {
                   <a
                     key={doc.id}
                     href={`${window.location.origin}/api/public/document/${doc.id}/view?token=${encodeURIComponent(visitorToken)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
                     className="w-full flex items-center gap-4 bg-zinc-900 border border-zinc-800 rounded-xl px-5 py-4 text-left hover:border-zinc-700 hover:bg-zinc-800/50 transition-all group"
                   >
                     <FileIcon type={doc.file_type} />
