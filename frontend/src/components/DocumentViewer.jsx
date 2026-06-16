@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { X, Loader, AlertCircle, ZoomIn, ZoomOut, ExternalLink } from 'lucide-react';
+import PDFViewer from './PDFViewer';
 
 const IMAGE_TYPES  = ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp'];
 const PDF_TYPES    = ['pdf'];
@@ -78,6 +79,7 @@ export default function DocumentViewer({ doc, visitorToken, onClose }) {
   const [error,   setError]    = useState(false);
   const [zoom,    setZoom]     = useState(1);
   const [slow,    setSlow]     = useState(false);
+  const [pdfFallback, setPdfFallback] = useState(false); // true if PDF.js failed and we use plain iframe
   const shape = useViewportShape(); // 'portrait' (mobile/vertical) or 'landscape' (desktop)
 
   const ext        = doc?.file_type?.toLowerCase();
@@ -100,6 +102,7 @@ export default function DocumentViewer({ doc, visitorToken, onClose }) {
     setError(false);
     setZoom(1);
     setSlow(false);
+    setPdfFallback(false);
   }, [doc.id]);
 
   // Surface "open in new tab" if loading takes too long (covers silent failures)
@@ -108,6 +111,13 @@ export default function DocumentViewer({ doc, visitorToken, onClose }) {
     const t = setTimeout(() => setSlow(true), LOAD_TIMEOUT_MS);
     return () => clearTimeout(t);
   }, [loaded, error, doc.id]);
+
+  // If PDF.js hangs silently (no onLoad/onError) past the timeout, fall back to the plain iframe
+  useEffect(() => {
+    if (viewerType !== 'pdf' || pdfFallback || loaded) return;
+    const t = setTimeout(() => setPdfFallback(true), LOAD_TIMEOUT_MS);
+    return () => clearTimeout(t);
+  }, [viewerType, pdfFallback, loaded, doc.id]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -204,10 +214,19 @@ export default function DocumentViewer({ doc, visitorToken, onClose }) {
           </div>
         )}
 
-        {/* PDF — native browser viewer via plain iframe (most reliable across devices) */}
-        {viewerType === 'pdf' && (
-          <iframe
+        {/* PDF — PDF.js canvas rendering (fits screen exactly, like native Files preview).
+            Falls back automatically to the plain native iframe if rendering fails or times out. */}
+        {viewerType === 'pdf' && !pdfFallback && (
+          <PDFViewer
             key={doc.id}
+            url={viewUrl}
+            onLoad={() => setLoaded(true)}
+            onError={() => { setLoaded(false); setSlow(false); setPdfFallback(true); }}
+          />
+        )}
+        {viewerType === 'pdf' && pdfFallback && (
+          <iframe
+            key={`${doc.id}-fallback`}
             src={pdfUrl}
             title={doc.display_name}
             onLoad={() => setLoaded(true)}
