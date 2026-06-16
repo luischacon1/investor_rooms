@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import api from '../lib/api';
-import DocumentViewer from '../components/DocumentViewer';
 
 const FILE_ICONS = {
   pdf: '📄', ppt: '📊', pptx: '📊', doc: '📝', docx: '📝',
@@ -23,7 +22,6 @@ export default function PublicRoomPage() {
   const [emailError, setEmailError] = useState('');
   const [visitorToken, setVisitorToken] = useState(null);
   const [visitorEmail, setVisitorEmail] = useState(null);
-  const [activeDoc, setActiveDoc] = useState(null);
 
   const storageKey = `ir_visitor_${slug}`;
 
@@ -136,9 +134,11 @@ export default function PublicRoomPage() {
               <p className="text-xs text-zinc-600 mb-5">Logged in as <span className="text-zinc-400">{visitorEmail}</span></p>
               <div className="space-y-2">
                 {room.documents.map(doc => (
-                  <button
+                  <a
                     key={doc.id}
-                    onClick={() => setActiveDoc(doc)}
+                    href={`${window.location.origin}/api/public/document/${doc.id}/view?token=${encodeURIComponent(visitorToken)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="w-full flex items-center gap-4 bg-zinc-900 border border-zinc-800 rounded-xl px-5 py-4 text-left hover:border-zinc-700 hover:bg-zinc-800/50 transition-all group"
                   >
                     <FileIcon type={doc.file_type} />
@@ -146,8 +146,8 @@ export default function PublicRoomPage() {
                       <div className="text-sm font-medium text-white truncate group-hover:text-zinc-100">{doc.display_name}</div>
                       <div className="text-xs text-zinc-600 uppercase mt-0.5">{doc.file_type}</div>
                     </div>
-                    <span className="text-xs text-zinc-600 group-hover:text-zinc-400 shrink-0">Ver →</span>
-                  </button>
+                    <span className="text-xs text-zinc-600 group-hover:text-zinc-400 shrink-0">Abrir →</span>
+                  </a>
                 ))}
               </div>
               {room.documents.length === 0 && (
@@ -158,15 +158,6 @@ export default function PublicRoomPage() {
           <div className="mt-12 pb-10 text-center text-zinc-800 text-xs">Powered by InvestorRoom</div>
         </div>
       </div>
-
-      {/* Document viewer modal */}
-      {activeDoc && visitorToken && (
-        <DocumentViewer
-          doc={activeDoc}
-          visitorToken={visitorToken}
-          onClose={() => setActiveDoc(null)}
-        />
-      )}
     </>
   );
 }

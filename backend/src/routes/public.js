@@ -111,11 +111,11 @@ router.get('/document/:id/view', async (req, res) => {
   const isVideo = ['mp4', 'webm', 'mov'].includes(ext);
 
   res.setHeader('Content-Type', mime);
-  res.setHeader('Content-Disposition', 'inline');
+  // inline: browser opens it natively (preview); the user can still save/download from there
+  res.setHeader('Content-Disposition', `inline; filename="${doc.display_name.replace(/"/g, '')}"`);
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  // private: token in URL makes it visitor-specific; 30min cache speeds up re-opens & prefetch
+  // private: token in URL makes it visitor-specific; 30min cache speeds up re-opens
   res.setHeader('Cache-Control', 'private, max-age=1800');
-  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
 
   // Video needs range request support so the player can seek
   if (isVideo) {
